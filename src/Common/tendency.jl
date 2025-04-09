@@ -24,10 +24,15 @@ end
     @. dY = 0
 end
 
+# @inline function zero_tendencies!(dY..Droplets?)
+#     @. dY = 0
+# end
+
 """
      Precompute the auxiliary values
 """
 @inline function precompute_aux_thermo!(sm::AbstractMoistureStyle, Y, aux)
+    print("Im being used Y")
     error("precompute_aux not implemented for a given $sm")
 end
 @inline function precompute_aux_thermo!(::EquilibriumMoisture, Y, aux)
@@ -137,6 +142,33 @@ end
     @. q_ice = FT(0)
 
     @. ρ = ρ_dry + tmp_cloudy.:3 * ρ_dry + Y.ρq_vap
+    @. ts = TD.PhaseNonEquil_ρTq(thermo_params, ρ, T, PP(q_tot, q_liq, q_ice))
+    @. p = TD.air_pressure(thermo_params, ts)
+    @. θ_liq_ice = TD.liquid_ice_pottemp(thermo_params, ts)
+    @. θ_dry = TD.dry_pottemp(thermo_params, T, ρ_dry)
+end
+
+@inline function precompute_aux_thermo!(::Superdroplets, Y, aux)
+
+    (; thermo_params, droplets_params) = aux
+    (; ts, ρ, ρ_dry, p, T, θ_dry, θ_liq_ice) = aux.thermo_variables
+    (; SD_Vol,SD_Mult, q_rai, N_rai, N_liq, q_tot, q_liq, q_ice) = aux.microph_variables
+    (; tmp_droplets) = aux.scratch
+
+    FT = eltype(Y.ρq_vap)
+    @. SD_Vol = Y.SD_Vol
+
+    # @. tmp_cloudy = separate_liq_rai(FT, Y.moments, pdists, cloudy_params, ρ_dry)
+    # @. N_liq = tmp_cloudy.:1
+    # @. N_rai = tmp_cloudy.:2
+    @. q_liq = sum.(SD_Vol.data*SD_Mult.data) # rows
+    # @. q_rai = tmp_cloudy.:4
+
+    FT = eltype(Y.ρq_vap)
+    @. q_tot = q_(Y.ρq_tot, ρ) + q_liq
+    @. q_ice = FT(0)
+
+    @. ρ = ρ_dry #+ tmp_cloudy.:3 * ρ_dry + Y.ρq_vap
     @. ts = TD.PhaseNonEquil_ρTq(thermo_params, ρ, T, PP(q_tot, q_liq, q_ice))
     @. p = TD.air_pressure(thermo_params, ts)
     @. θ_liq_ice = TD.liquid_ice_pottemp(thermo_params, ts)
@@ -270,6 +302,21 @@ end
     @. weighted_vt = get_weighted_vt(moments, pdists, cloudy_params)
 end
 
+@inline function precompute_aux_precip!(ps::DropletsPrecip, Y, aux) end
+    # FT = eltype(Y.ρq_rai)
+
+    # (; ρ) = aux.thermo_variables
+    # (; q_rai, q_sno) = aux.microph_variables
+    # (; term_vel_rai, term_vel_sno) = aux.velocities
+
+    # @. q_rai = q_(Y.ρq_rai, ρ)
+    # @. q_sno = q_(Y.ρq_sno, ρ)
+
+    # @. term_vel_rai = CM1.terminal_velocity(ps.rain, ps.sedimentation.rain, ρ, q_rai)
+    # @. term_vel_sno = CM1.terminal_velocity(ps.snow, ps.sedimentation.snow, ρ, q_sno)
+#     # @. weighted_vt = get_weighted_vt(moments, pdists, droplets_params)
+# end
+
 @inline function precompute_aux_moisture_sources!(sm::AbstractMoistureStyle, aux)
     error("precompute_aux not implemented for a given $sm")
 end
@@ -302,7 +349,10 @@ end
 end
 @inline function precompute_aux_moisture_sources!(::CloudyMoisture, aux) end
 
+@inline function precompute_aux_moisture_sources!(::Superdroplets, aux) end
+
 @inline function precompute_aux_precip_sources!(sp::AbstractPrecipitationStyle, aux)
+    print("Im being used precip")
     error("precompute_aux not implemented for a given $sp")
 end
 @inline function precompute_aux_precip_sources!(::NoPrecipitation, aux) end
@@ -577,6 +627,12 @@ end
 
     return S_coal
 end
+
+# # needed?
+# @inline function get_coal_sources_drops(droplets_params_params, moments, pdists, dt)
+#     return S_coal
+# end
+
 @inline function get_cond_evap_sources(
     thermo_params,
     air_params,
@@ -639,6 +695,33 @@ end
 
 end
 
+
+
+
+@inline function precompute_aux_precip_sources!(ps::DropletsPrecip, aux)
+
+    (; common_params, thermo_params, air_params, droplets_params) = aux
+    (; SD_Vol,SD_Mult) = aux.microph_variables
+    (; T, ρ) = aux.thermo_variables
+    (; dt) = aux.TS
+    (; tmp_droplets) = aux.scratch
+
+    FT = eltype(thermo_params)
+    # @. aux.precip_sources.moments *= FT(0)
+
+
+    # condensation or evaporations
+    if Bool(common_params.precip_sinks)
+        print("Im being used droplets")
+        Senv = TD.supersaturation(thermo_params, q, ρ, T, TD.Liquid()) +1
+        tmp_droplets = Droplets.volume_to_radius(SD_Vol)
+        aux.precip_sources.SD_Vol += Droplets.dXkohler_function_of_radius_activated(tmp.droplets,T,Senv,dt)
+        tmp_droplets = Droplets.dXkohler_function_of_radius_activated(tmp_droplets,T,Senv,dt)*SD_Mult
+        aux.precip_sources.ρq_vap -= sum.(tmp_droplets.data)*ρ
+    end
+
+end
+
 """
    Additional source terms
 """
@@ -661,9 +744,15 @@ end
     return dY
 end
 
+@inline function cloud_sources_tendency!(::Superdroplets, dY, Y, aux, t)
+    @. dY.ρq_vap += aux.precip_sources.ρq_vap
+    @. dY.ρq_vap += aux.activation_sources.ρq_vap
+    return dY
+end
+
 
 @inline function precip_sources_tendency!(ms::AbstractMoistureStyle, ps::AbstractPrecipitationStyle, dY, Y, aux, t)
-    error("sources_tendency not implemented for a given $sp")
+    error("sources_tendency not implemented for a given $ps")
 end
 @inline function precip_sources_tendency!(ms::AbstractMoistureStyle, ::NoPrecipitation, dY, Y, aux, t) end
 
@@ -724,3 +813,13 @@ end
     @. dY.N_aer += aux.activation_sources.N_aer
     return dY
 end
+
+#needed?
+@inline function precip_sources_tendency!(ms::Superdroplets, ps::DropletsPrecip, dY, Y, aux, t)
+    precompute_aux_precip_sources!(ps, aux)
+    @. dY.SD_Vol += aux.precip_sources.SD_Vol
+    return dY
+end
+
+
+

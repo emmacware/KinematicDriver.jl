@@ -75,15 +75,24 @@ Base.@kwdef struct CloudyParameters{FT, NM, ND, N, P, T} <: ACP
     end
 end
 
+Base.@kwdef struct Droplet_Params{FT} <: ACP
+    Ns::Int
+    kernel::Function
+    x::FT = 1.0
+end
+
+
 precip_sources(ps::ACP) = ps.precip_sources
 precip_sinks(ps::ACP) = ps.precip_sinks
 prescribed_Nd(ps::ACP) = ps.prescribed_Nd
 
 Base.eltype(::CommonParameters{FT}) where {FT} = FT
 Base.eltype(::CloudyParameters{FT}) where {FT} = FT
+Base.eltype(::Droplet_Params{FT}) where {FT} = FT
 # Magic needed to get rid of length(ps) error
 Base.broadcastable(ps::ACP) = Ref(ps)
 Base.broadcastable(x::CommonParameters) = Ref(x)
 Base.broadcastable(x::CloudyParameters) = Ref(x)
+Base.broadcastable(x::Droplet_Params) = Ref(x)
 
 end

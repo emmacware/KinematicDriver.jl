@@ -180,6 +180,8 @@ end
     @. aux.activation_sources.ρq_vap = -aux.activation_sources.activation.:2
 end
 
+@inline function precompute_aux_activation!(::CO.DropletsPrecip, dY, Y, aux, t) end
+
 """
     Prescribed momentum flux as a function of time
 """
@@ -238,6 +240,26 @@ end
 
     return dY
 end
+
+#???? pretty sure just moisture?
+@inline function advection_tendency!(::CO.Superdroplets, dY, Y, aux, t)
+
+    If = CC.Operators.InterpolateC2F()
+    ∂ = CC.Operators.DivergenceF2C(
+        bottom = CC.Operators.SetValue(CC.Geometry.WVector(aux.prescribed_velocity.ρw0 * aux.q_surf)),
+        top = CC.Operators.Extrapolate(),
+    )
+    @. dY.ρq_vap += -∂(aux.prescribed_velocity.ρw / If(aux.thermo_variables.ρ) * If(Y.ρq_vap))
+
+    if Bool(aux.kid_params.qtot_flux_correction)
+        fcc = CC.Operators.FluxCorrectionC2C(bottom = CC.Operators.Extrapolate(), top = CC.Operators.Extrapolate())
+        @. dY.ρq_vap += fcc(aux.prescribed_velocity.ρw / If(aux.thermo_variables.ρ), Y.ρq_vap)
+    end
+
+    return dY
+end
+
+
 @inline function advection_tendency!(::CO.NonEquilibriumMoisture, dY, Y, aux, t)
     FT = eltype(Y.ρq_tot)
 
@@ -412,6 +434,11 @@ end
 
     return dY
 end
+
+#I think we want to do this in a callback stochastically
+#check what other Y variables there are.. are they in here?
+@inline function advection_tendency!(::CO.DropletsPrecip, dY, Y, aux, t) end
+
 
 @inline function advection_tendency!(::CO.PrecipitationP3, dY, Y, aux, t)
     FT = eltype(Y.ρq_tot)

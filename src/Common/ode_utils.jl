@@ -95,6 +95,17 @@ function initialise_state(::CloudyMoisture, ::CloudyPrecip, initial_profiles)
     )
 end
 
+function initialise_state(::Superdroplets, ::DropletsPrecip, initial_profiles)
+    return CC.Fields.FieldVector(;
+        ρq_vap = initial_profiles.ρq_vap,
+        ρq_tot = initial_profiles.ρq_tot,
+        # N_liq = initial_profiles.N_liq,
+        # N_rai = initial_profiles.N_rai,
+        N_aer = initial_profiles.N_aer,
+        SD_Vol = initial_profiles.SD_Vol,
+    )
+end
+
 """
    Interface to ODE solver. It initializes the auxiliary state.
    The auxiliary state is created as a ClimaCore FieldVector
@@ -112,7 +123,8 @@ function initialise_aux(
     moisture,
     precip,
     cloudy_params = nothing,
-)
+    droplets_params = nothing,
+)   
 
     # Create a thermo state for aux
     # Allocate the cloud_sources which is a field of containers (tuples)
@@ -127,6 +139,10 @@ function initialise_aux(
         cloud_sources_eltype = @NamedTuple{q_liq::FT, q_ice::FT}
         cloud_sources = @. cloud_sources_eltype(tuple(copy(ip.zero), copy(ip.zero)))
     elseif moisture isa CloudyMoisture
+        q = @. TD.PhasePartition(ip.q_tot, ip.q_liq, ip.q_ice)
+        ts = @. TD.PhaseNonEquil_ρTq(thermo_params, ip.ρ, ip.T, q)
+        cloud_sources = nothing
+    elseif moisture isa Superdroplets
         q = @. TD.PhasePartition(ip.q_tot, ip.q_liq, ip.q_ice)
         ts = @. TD.PhaseNonEquil_ρTq(thermo_params, ip.ρ, ip.T, q)
         cloud_sources = nothing
@@ -274,6 +290,26 @@ function initialise_aux(
             (; activation = copy(ip.cloudy_moments_zero), N_aer = copy(ip.zero), ρq_vap = copy(ip.zero))
         cloudy_variables = (; nm_cloud = Val(cloudy_params.NProgMoms[1]))
         scratch = merge(scratch, (; tmp_cloudy = similar(ip.cloudy_moments_zero)))
+    elseif precip isa DropletsPrecip
+        microph_variables = (;
+            q_tot = ip.q_tot,
+            q_liq = ip.q_liq,
+            q_ice = ip.q_ice,
+            q_rai = ip.q_rai,
+            q_sno = ip.q_sno,
+            N_liq = ip.N_liq,
+            N_rai = ip.N_rai,
+            N_aer = ip.N_aer,
+            SD_Vol = ip.SD_Vol,
+            SD_Mult = ip.SD_Mult,
+        )
+        #velocities for stochastic adv. callbacks
+        velocities = (; centerv = copy(ip.zero))
+        precip_sources = (; SD_Vol = copy(ip.SD_Vol),ρq_vap = copy(ip.zero))
+        activation_sources =
+            (; activation = copy(ip.zero), N_aer = copy(ip.zero), ρq_vap = copy(ip.zero))
+        droplets_variables = (; Ns = Val(droplets_params.Ns))
+        scratch = merge(scratch, (; tmp_droplets = similar(ip.SD_Vol)))
     else
         error("Wrong precipitation choice $precip")
     end
@@ -298,7 +334,10 @@ function initialise_aux(
         aux = merge(aux, (; cloudy_params, cloudy_variables))
     elseif precip isa PrecipitationP3
         aux = merge(aux, (; p3_boundary_condition))
+    elseif precip isa DropletsPrecip
+        aux = merge(aux, (; droplets_params, droplets_variables))
     end
+
 
     return aux
 end

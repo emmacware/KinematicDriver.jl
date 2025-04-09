@@ -279,7 +279,17 @@ function cloudy_initial_condition(pdists, ip, k = 1)
 
     cloudy_moments_zero::NTuple{NM, FT} = ntuple(_ -> FT(0), NM)
 
-    return merge(ip, (; moments = moments, pdists = pdists, cloudy_moments_zero))
+    return merge(ip, (; moments = moments, pdists = pdists, cloudy_moments_zero,))
+end
+
+function initial_condition_droplets(NM::Int, ip)
+    # NM = Int(NM)
+
+    FT = eltype(ip.ρq_liq)
+    SD_Vol::SVector{NM, FT} = SVector{NM, FT}(fill(2.0e-6, NM)...)
+    SD_Mult::SVector{NM, FT} = SVector{NM, FT}(fill(1.0, NM)...)
+
+    return merge(ip, (; SD_Vol = SD_Vol,SD_Mult = SD_Mult,))
 end
 
 function p3_initial_condition(

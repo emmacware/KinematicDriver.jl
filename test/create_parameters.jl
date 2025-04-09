@@ -204,3 +204,9 @@ function create_cloudy_parameters(FT, dist_names::NTuple{ND, String} = ("gamma",
     return cloudy_params, pdists
 end
 #! format: on
+
+function create_droplets_parameters(FT,NSD,kernel)
+
+    droplets_params = CO.Parameters.Droplet_Params{FT}(Ns=NSD,kernel=kernel,x=FT(1.0))
+    return droplets_params, NSD
+end

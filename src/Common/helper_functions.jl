@@ -10,6 +10,8 @@ function get_moisture_type(moisture_choice::String, toml_dict)
         moisture = CloudyMoisture()
     elseif moisture_choice == "MoistureP3"
         moisture = MoistureP3()
+    elseif moisture_choice == "Superdroplets"
+        moisture = Superdroplets()
     else
         error("Invalid moisture choice: $moisture_choice")
     end
@@ -86,6 +88,8 @@ function get_precipitation_type(
         Chen2022 = CMP.Chen2022VelType(FT)
         sb2006 = CMP.SB2006(toml_dict)
         precip = PrecipitationP3(p3_params, Chen2022, sb2006, boundary)
+    elseif precipitation_choice == "DropletsPrecip"
+        precip = DropletsPrecip()
     else
         error("Invalid precipitation choice: $precipitation_choice")
     end
