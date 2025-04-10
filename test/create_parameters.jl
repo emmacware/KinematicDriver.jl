@@ -205,8 +205,8 @@ function create_cloudy_parameters(FT, dist_names::NTuple{ND, String} = ("gamma",
 end
 #! format: on
 
-function create_droplets_parameters(FT,NSD,kernel)
+function create_droplets_parameters(::Type{FT},NSD,kernel,coagsettings::Droplets.coag_settings{FT},num_layers) where {FT}
 
-    droplets_params = CO.Parameters.Droplet_Params{FT}(Ns=NSD,kernel=kernel,x=FT(1.0))
+    droplets_params = CO.Parameters.Droplet_Params{FT}(Ns=NSD,kernel=kernel,settings=coagsettings,num_layers=FT(1.0))
     return droplets_params, NSD
 end

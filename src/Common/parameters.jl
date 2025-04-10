@@ -3,6 +3,7 @@ module Parameters
 using DocStringExtensions
 import ClimaParams as CP
 import Cloudy as CL
+using Droplets
 
 abstract type AbstractCommonParameters end
 const ACP = AbstractCommonParameters
@@ -78,7 +79,8 @@ end
 Base.@kwdef struct Droplet_Params{FT} <: ACP
     Ns::Int
     kernel::Function
-    x::FT = 1.0
+    settings::Droplets.coag_settings{FT}
+    num_layers::Int
 end
 
 
@@ -94,5 +96,10 @@ Base.broadcastable(ps::ACP) = Ref(ps)
 Base.broadcastable(x::CommonParameters) = Ref(x)
 Base.broadcastable(x::CloudyParameters) = Ref(x)
 Base.broadcastable(x::Droplet_Params) = Ref(x)
+Base.broadcastable(x::Droplets.Serial) = Ref(x)
+Base.broadcastable(x::Droplets.KiD) = Ref(x)
+Base.broadcastable(x::Droplets.coagulation_run{FT}) where{FT} = Ref(x)
+Base.broadcastable(x::Droplets.coag_settings{FT}) where{FT} = Ref(x)
+
 
 end

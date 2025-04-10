@@ -1,8 +1,4 @@
-A = (1,2,3)
-
 using StaticArrays
-A = SVector{64}(1:64...)
-
 using Droplets
 
 import OrdinaryDiffEq as ODE
@@ -13,10 +9,15 @@ import KinematicDriver
 import KinematicDriver.Common as CO
 import KinematicDriver.K1DModel as K1D
 
+using Distributions
+
 include(joinpath(pkgdir(KinematicDriver), "test", "create_parameters.jl"))
 include(joinpath(pkgdir(KinematicDriver), "test", "plotting_utils.jl"))
+include("/Users/emmaware/.julia/dev/KinematicDriver/test/experiments/DropletsCompat/droplets_callbacks.jl")
 
-const Nsd = 10
+
+const Nsd::Int = 10
+# const FT = Float64
 function run_KiD_col_sed_simulation(::Type{FT}, opts) where {FT}
 
     # Equations to solve for precipitation variables
@@ -98,13 +99,22 @@ function run_KiD_col_sed_simulation(::Type{FT}, opts) where {FT}
     # if precipitation_choice == "DropletsPrecip"
     cloudy_params = nothing
     ρ_profile = CO.ρ_ivp(FT, kid_params, thermo_params)
-    droplets_params, NS = create_droplets_parameters(FT, Nsd,Droplets.golovin)
+
+    coagsettings = Droplets.coag_settings{FT}(
+        Δt = TS.dt,
+        ΔV = 1, #?
+        Ns= Nsd,# number of superdroplets
+        scale = Nsd * (Nsd - 1) / 2 / (Nsd / 2),
+        golovin_kernel_coeff = FT(1.5e3),
+        kernel = Droplets.golovin, # golovin, hydrodynamic
+    )
+    droplets_params, NS = create_droplets_parameters(FT, Nsd,Droplets.golovin,coagsettings,opts["n_elem"])
     # println("Droplets parameters: ", droplets_params)
     # pdist_types = determine_cloudy_disttypes(opts["num_moments"])
     # cloudy_params, cloudy_pdists = create_cloudy_parameters(FT, pdist_types)
     init = map(
         coord -> CO.initial_condition_droplets(
-            Int(Nsd),
+            Nsd,
             CO.initial_condition_1d(FT, common_params, kid_params, thermo_params, ρ_profile, coord.z),
         ),
         coord,
@@ -134,8 +144,10 @@ function run_KiD_col_sed_simulation(::Type{FT}, opts) where {FT}
     CO.simulation_output(aux, 0.0)
 
     # Define callbacks for output
-    callback_io = ODE.DiscreteCallback(CO.condition_io, CO.affect_io!; save_positions = (false, false))
-    callbacks = ODE.CallbackSet(callback_io)
+    callback_coalesce = ODE.DiscreteCallback(opsplitting_condition, SD_collision_coalescence_callback; save_positions = (false, false))
+    callback_stochasticadv = ODE.DiscreteCallback(opsplitting_condition, SD_stochasticadv_callback; save_positions = (false, false))
+    callback_io = ODE.DiscreteCallback(opsplitting_condition, CO.affect_io!; save_positions = (false, false))
+    callbacks = ODE.CallbackSet(callback_coalesce,callback_stochasticadv,callback_io)
 
     # Collect all the tendencies into rhs function for ODE solver
     # based on model choices for the solved equations
@@ -179,3 +191,4 @@ opts = Dict(
     "t_end" => 3600.0,
 )
 run_KiD_col_sed_simulation(Float64, opts);
+
