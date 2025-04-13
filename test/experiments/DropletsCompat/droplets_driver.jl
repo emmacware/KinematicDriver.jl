@@ -16,8 +16,8 @@ include(joinpath(pkgdir(KinematicDriver), "test", "plotting_utils.jl"))
 include("/Users/emmaware/.julia/dev/KinematicDriver/test/experiments/DropletsCompat/droplets_callbacks.jl")
 
 
-const Nsd::Int = 10
-# const FT = Float64
+const Nsd::Int = 64
+const FT = Float64
 function run_KiD_col_sed_simulation(::Type{FT}, opts) where {FT}
 
     # Equations to solve for precipitation variables
@@ -178,7 +178,7 @@ opts = Dict(
     "prescribed_Nd" => 1e8,
     "k" => 2.0,
     "rhod" => 1.0,
-    "precipitation_choice" => "CloudyPrecip",
+    "precipitation_choice" => "DropletsPrecip",
     "num_moments" => 6,
     "rain_formation_choice" => "CliMA_1M",
     "sedimentation_choice" => "CliMA_1M",
@@ -190,5 +190,5 @@ opts = Dict(
     "t_ini" => 0.0,
     "t_end" => 3600.0,
 )
-run_KiD_col_sed_simulation(Float64, opts);
+run_KiD_col_sed_simulation(FT, opts);
 
