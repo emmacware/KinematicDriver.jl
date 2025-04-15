@@ -5,6 +5,7 @@ import SpecialFunctions as SF
 import NCDatasets as NC
 using Statistics
 using StaticArrays
+using Droplets
 
 import ClimaCore as CC
 import Thermodynamics as TD

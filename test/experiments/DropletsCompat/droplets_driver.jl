@@ -114,6 +114,7 @@ function run_KiD_col_sed_simulation(::Type{FT}, opts) where {FT}
     # cloudy_params, cloudy_pdists = create_cloudy_parameters(FT, pdist_types)
     init = map(
         coord -> CO.initial_condition_droplets(
+            FT,
             Nsd,
             CO.initial_condition_1d(FT, common_params, kid_params, thermo_params, ρ_profile, coord.z),
         ),

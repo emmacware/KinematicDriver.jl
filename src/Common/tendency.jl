@@ -159,10 +159,12 @@ end
     @. SD_Vol = Y.SD_Vol
 
     # @. tmp_cloudy = separate_liq_rai(FT, Y.moments, pdists, cloudy_params, ρ_dry)
-    # @. N_liq = tmp_cloudy.:1
-    # @. N_rai = tmp_cloudy.:2
-    @. q_liq = sum.(SD_Vol.data*SD_Mult.data) # rows
+    # Droplets.separate_liq_rai(FT, SD_Vol, droplets_params)
+    # # @. N_liq = tmp_cloudy.:1
+    # # @. N_rai = tmp_cloudy.:2
+    # @. q_liq = sum.(SD_Vol.data*SD_Mult.data) # rows
     # @. q_rai = tmp_cloudy.:4
+    (;N_liq,N_rai,q_liq,q_rai) = map(Droplets.size_thresh_separate_droplets,SD_Vol,SD_Mult,ρ_dry)
 
     FT = eltype(Y.ρq_vap)
     @. q_tot = q_(Y.ρq_tot, ρ) + q_liq

@@ -282,14 +282,34 @@ function cloudy_initial_condition(pdists, ip, k = 1)
     return merge(ip, (; moments = moments, pdists = pdists, cloudy_moments_zero,))
 end
 
-function initial_condition_droplets(NM::Int, ip)
+function initial_condition_droplets(::Type{FT},NM::Int, ip) where {FT}
     # NM = Int(NM)
+    # error("Droplets initial condition not implemented yet")
 
-    FT = eltype(ip.ρq_liq)
-    SD_Vol::SVector{NM, FT} = SVector{NM, FT}(fill(2.0e-6, NM)...)
-    SD_Mult::SVector{NM, FT} = SVector{NM, FT}(fill(1.0, NM)...)
+    # FT = eltype(ip.ρq_liq)
+    L_tr::FT = ip.ρq_liq + ip.ρq_rai
+    Nd::FT = ip.N_liq + ip.N_rai
+    println("L_tr: ", L_tr)
+    println("Nd: ", Nd)
 
-    return merge(ip, (; SD_Vol = SD_Vol,SD_Mult = SD_Mult,))
+    healthy_drops = Int(floor(NM * 3/4))
+    # println("healthy_drops: ", healthy_drops)
+    # mult = [i <= healthy_drops ? FT(Nd / healthy_drops) : FT(0.0) for i in 1:NM]
+    # vol = [i <= healthy_drops ? FT(L_tr / 1000 / healthy_drops) : FT(0.0) for i in 1:NM]
+
+    # FT = eltype(ip.ρq_liq)
+    SD_Vol::SVector{NM, FT} = SVector{NM, FT}(i <= healthy_drops ? FT(Nd / healthy_drops) : FT(0.0) for i in 1:NM)
+    # if all(SD_Vol[1:healthy_drops] .== 0)
+    #     error(SD_Vol)
+    # end
+    # SD_Vol::SVector{NM, FT} = SVector{NM, FT}(fill(FT(1.0), NM))
+    # SD_Mult::SVector{NM, FT} = SVector{NM, FT}(fill(FT(1.0), NM))
+
+    SD_Mult::SVector{NM, FT} = SVector{NM, FT}(i <= healthy_drops ? FT(L_tr / 1000 / healthy_drops) : FT(0.0) for i in 1:NM)
+    # drops = Droplets.static_droplet_attributes{FT,NM}(SD_Mult,SD_Vol,SD_Vol)
+    # print("drops")
+
+    return merge(ip, (; SD_Vol = SD_Vol,SD_Mult = SD_Mult))
 end
 
 function p3_initial_condition(

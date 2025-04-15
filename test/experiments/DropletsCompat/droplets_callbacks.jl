@@ -13,6 +13,8 @@ function SD_collision_coalescence_callback(integrator)
 
     coagdata = Droplets.coagulation_run{FT}(aux.droplets_params.Ns)
 
+    # Droplets.static_droplets_attributes{FT,Nsd}(aux.microph_variables.SD_Mult,aux.microph_variables.SD_Vol)
+
     (;SD_Vol, SD_Mult) = coalescence_timestep!.(Droplets.Serial(),Droplets.KiD(), 
     aux.microph_variables.SD_Mult,aux.microph_variables.SD_Vol,
     coagdata,aux.droplets_params.settings)
@@ -27,35 +29,32 @@ end
 function SD_stochasticadv_callback(integrator)
     Y = integrator.u
     aux = integrator.p
-    # aux.microph_variables.SD_Vol = Y.SD_Vol
-    # dY = integrator.du
-    # CO.zero_tendencies!(dY)
-    # aux.precip_sinks.SD_Vol .= 0.0
-    # aux.scratch.tmp_droplets .= 0.0
-
-    If = CC.Operators.InterpolateC2F()
-    # @. aux.scratch.tmp =  aux.prescribed_velocity.ρw / If(aux.thermo_variables.ρ)
-
-    velocity = aux.thermo_variables.ρ ./ (aux.thermo_variables.ρ.+0.1)
-    dz = CC.Fields.Δz_field(aux.thermo_variables.ρ)
-    oned_motion_probability = velocity #.* aux.TS.dt ./ dz
-    # Need to calculate probability of moving up or down for each cell (courant number using face velocity)
-
-
-    (;moveup,movedown) = advection_trials.(aux.droplets_params.Ns, oned_motion_probability)
-
-
-    (;SD_Vol,SD_Mult,transport_vol_up,transport_vol_down,transport_mult_up,transport_mult_down
-        ) = map(movedropletstotmp, aux.microph_variables.SD_Vol, 
-            aux.microph_variables.SD_Mult,moveup, movedown)
-    
 
 
     down_to_face = CC.Operators.RightBiasedC2F()
     up_to_face = CC.Operators.LeftBiasedC2F()
-
     down_to_center = CC.Operators.RightBiasedF2C()
     up_to_center = CC.Operators.LeftBiasedF2C()
+
+    If = CC.Operators.InterpolateC2F()
+
+    dz = CC.Fields.Δz_field(aux.thermo_variables.ρ)
+    dt = aux.TS.dt
+
+    uppervel = similar(aux.thermo_variables.ρ)
+    lowervel = similar(aux.thermo_variables.ρ)
+
+    @. uppervel = down_to_center.(aux.prescribed_velocity.ρw.components.data.:1 / If.(aux.thermo_variables.ρ))
+    @. lowervel = up_to_center.(aux.prescribed_velocity.ρw.components.data.:1 / If.(aux.thermo_variables.ρ))
+
+    @. uppervel *= dt / dz
+    @. lowervel *= dt / dz
+
+    (;moveup,movedown) = advection_trials.(aux.droplets_params.Ns, uppervel,lowervel)
+
+    (;SD_Vol,SD_Mult,transport_vol_up,transport_vol_down,transport_mult_up,transport_mult_down
+        ) = map(movedropletstotmp, aux.microph_variables.SD_Vol, 
+            aux.microph_variables.SD_Mult,moveup, movedown)
 
     @. transport_vol_up = up_to_center.(up_to_face.(transport_vol_up))
     @. transport_vol_down = down_to_center.(down_to_face.(transport_vol_down))
@@ -73,9 +72,16 @@ function SD_stochasticadv_callback(integrator)
 
 end
 
-function advection_trials(Nsd::Int, oned_motion_probability::FT) where {FT}
-    probabilities = SVector{3,FT}(oned_motion_probability, 1.0 - oned_motion_probability,FT(0.0))
-    moveup,movedown = FT.(rand(Distributions.Multinomial(Nsd, probabilities)))
+function advection_trials(Nsd::Int, movedown::FT,moveup::FT) where {FT}
+    movedownprob = movedown < 0.0 ? movedown : FT(0.0)
+    moveupprob = moveup > 0.0 ? moveup : FT(0.0)
+    stayprob = FT(1.0) - movedownprob - moveupprob
+    probabilities = SVector{3,FT}(
+        movedownprob,
+        moveupprob,
+        stayprob,
+    )
+    moveup,movedown,stay = FT.(rand(Distributions.Multinomial(Nsd, probabilities)))
     return (;moveup,movedown)
 end
 

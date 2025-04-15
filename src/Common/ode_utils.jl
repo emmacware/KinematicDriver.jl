@@ -103,6 +103,7 @@ function initialise_state(::Superdroplets, ::DropletsPrecip, initial_profiles)
         # N_rai = initial_profiles.N_rai,
         N_aer = initial_profiles.N_aer,
         SD_Vol = initial_profiles.SD_Vol,
+        # drops = initial_profiles.drops,
     )
 end
 
